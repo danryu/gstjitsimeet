@@ -25,7 +25,7 @@ struct Props {
     CodecType   video_codec_type;
     int         last_n;
     guint       jitterbuffer_latency;
-    bool        secure;
+    bool        secure=true;
     bool        async_sink;
 
     auto ensure_required_prop() const -> bool;

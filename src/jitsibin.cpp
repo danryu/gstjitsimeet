@@ -643,7 +643,7 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
             .address   = props.server_address.data(),
             .path      = ws_path.data(),
             .protocol  = "xmpp",
-            .port      = 443,
+            .port      = 30443,
             .ssl_level = props.secure ? ws::client::SSLLevel::Enable : ws::client::SSLLevel::TrustSelfSigned,
         }));
 

@@ -54,23 +54,54 @@ auto jitsibin_pad_added_handler(GstElement* const /*jitsibin*/, GstPad* const pa
     }
 
     // for video
+    PRINT("Creating decoder pipeline for {}", decoder);
     unwrap_mut(dec, add_new_element_to_pipeine(self.pipeline, decoder.data()));
+    PRINT("Created decoder");
     unwrap_mut(videoconvert, add_new_element_to_pipeine(self.pipeline, "videoconvert"));
-    unwrap_mut(waylandsink, add_new_element_to_pipeine(self.pipeline, "waylandsink"));
+    PRINT("Created videoconvert");
+    
+    // Use osxvideosink with proper settings for macOS
+    unwrap_mut(videosink, add_new_element_to_pipeine(self.pipeline, "osxvideosink"));
+    g_object_set(&videosink,
+                 "async", FALSE,
+                 "sync", FALSE,
+                 NULL);
+    PRINT("Created videosink (osxvideosink)");
+    
     g_object_set(&dec,
                  "automatic-request-sync-points", TRUE,
                  "automatic-request-sync-point-flags", GST_VIDEO_DECODER_REQUEST_SYNC_POINT_CORRUPT_OUTPUT,
                  NULL);
+    PRINT("Configured decoder");
 
     const auto dec_sink_pad = AutoGstObject(gst_element_get_static_pad(&dec, "sink"));
     ensure(dec_sink_pad.get() != NULL);
+    PRINT("Got decoder sink pad");
+    
+    PRINT("Linking jitsibin pad to decoder...");
     ensure(gst_pad_link(pad, GST_PAD(dec_sink_pad.get())) == GST_PAD_LINK_OK);
+    PRINT("Linked jitsibin -> decoder");
+    
     ensure(gst_element_link_pads(&dec, NULL, &videoconvert, NULL) == TRUE);
-    ensure(gst_element_link_pads(&videoconvert, NULL, &waylandsink, NULL) == TRUE);
-    ensure(gst_element_sync_state_with_parent(&videoconvert) == TRUE);
-    ensure(gst_element_sync_state_with_parent(&waylandsink) == TRUE);
+    PRINT("Linked decoder -> videoconvert");
+    
+    ensure(gst_element_link_pads(&videoconvert, NULL, &videosink, NULL) == TRUE);
+    PRINT("Linked videoconvert -> videosink");
+    
+    PRINT("Syncing states...");
+    // Sync decoder first (it needs to receive data)
     ensure(gst_element_sync_state_with_parent(&dec) == TRUE);
-    PRINT("added h264 decoder");
+    PRINT("Synced decoder");
+    ensure(gst_element_sync_state_with_parent(&videoconvert) == TRUE);
+    PRINT("Synced videoconvert");
+    // Sync videosink last with async state change handling
+    const auto ret = gst_element_set_state(&videosink, GST_STATE_PLAYING);
+    ensure(ret != GST_STATE_CHANGE_FAILURE);
+    PRINT("Started videosink (async={}, state={})",
+          ret == GST_STATE_CHANGE_ASYNC ? "true" : "false",
+          ret == GST_STATE_CHANGE_SUCCESS ? "playing" : "pending");
+    
+    PRINT("Successfully added h264 decoder pipeline!");
 }
 
 auto jitsibin_pad_removed_handler(GstElement* const /*jitisbin*/, GstPad* const pad, gpointer const /*data*/) -> void {
@@ -130,8 +161,6 @@ auto main(const int argc, const char* const* argv) -> int {
      */
 
     unwrap_mut(videotestsrc, add_new_element_to_pipeine(pipeline.get(), "videotestsrc"));
-    unwrap_mut(tee, add_new_element_to_pipeine(pipeline.get(), "tee"));
-    unwrap_mut(waylandsink, add_new_element_to_pipeine(pipeline.get(), "waylandsink"));
     unwrap_mut(videoconvert, add_new_element_to_pipeine(pipeline.get(), "videoconvert"));
     unwrap_mut(x264enc, add_new_element_to_pipeine(pipeline.get(), "x264enc"));
     unwrap_mut(audiotestsrc, add_new_element_to_pipeine(pipeline.get(), "audiotestsrc"));
@@ -144,9 +173,6 @@ auto main(const int argc, const char* const* argv) -> int {
     g_signal_connect(&jitsibin, "mute-state-changed", G_CALLBACK(jitsibin_mute_state_changed_handler), &context);
     g_signal_connect(&jitsibin, "finished", G_CALLBACK(jitsibin_finished_handler), &context);
 
-    g_object_set(&waylandsink,
-                 "async", FALSE,
-                 NULL);
     g_object_set(&videotestsrc,
                  "is-live", TRUE,
                  NULL);
@@ -167,9 +193,7 @@ auto main(const int argc, const char* const* argv) -> int {
                  "insecure", TRUE,
                  NULL);
 
-    ensure(gst_element_link_pads(&videotestsrc, NULL, &tee, NULL) == TRUE);
-    ensure(gst_element_link_pads(&tee, NULL, &waylandsink, NULL) == TRUE);
-    ensure(gst_element_link_pads(&tee, NULL, &videoconvert, NULL) == TRUE);
+    ensure(gst_element_link_pads(&videotestsrc, NULL, &videoconvert, NULL) == TRUE);
     ensure(gst_element_link_pads(&videoconvert, NULL, &x264enc, NULL) == TRUE);
     ensure(gst_element_link_pads(&x264enc, NULL, &jitsibin, "video_sink") == TRUE);
     ensure(gst_element_link_pads(&audiotestsrc, NULL, &opusenc, NULL) == TRUE);

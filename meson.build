@@ -5,11 +5,8 @@ add_project_arguments('-Wno-narrowing', language : 'cpp')
 add_project_arguments('-Wno-missing-field-initializers', language : 'cpp')
 add_project_arguments('-std=c++23', language : 'cpp')
 
-gstreamer_dep = dependency('gstreamer-full-1.0', version : ['>=1.20'])
+gstreamer_dep = dependency('gstreamer-1.0', version : ['>=1.20'])
 
-# For static gstreamer-full builds, we need to explicitly link the qml6 plugin
-# This matches what's done in the working CMake example (line 57)
-gstqml6_dep = dependency('gstqml6', required : false)
 
 deps = [
   gstreamer_dep,
@@ -18,13 +15,10 @@ deps = [
   dependency('openssl'),
 ]
 
-if gstqml6_dep.found()
-  deps += gstqml6_dep
-endif
 
 subdir('src/jitsi')
 
-library('gstjitsimeet', files(
+gstjitsimeet_plugin = library('gstjitsimeet', files(
     'src/lib.cpp',
     'src/jitsibin.cpp',
     'src/props.cpp',
@@ -33,6 +27,13 @@ library('gstjitsimeet', files(
   install : true,
   install_dir : get_option('libdir') / 'gstreamer-1.0',
 )
+
+gst_plugins = [
+  declare_dependency(
+    link_with: gstjitsimeet_plugin,
+    variables: {'full_path': gstjitsimeet_plugin.full_path()}
+  )
+]
 
 # examples - disabled for static builds due to qml6 plugin Qt dependencies
 # The main libgstjitsimeet.a library builds fine
