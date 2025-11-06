@@ -97,6 +97,9 @@ auto Props::handle_set_prop(const guint id, const GValue* const value, GParamSpe
     case last_n_id:
         last_n = g_value_get_int(value);
         return true;
+    case receive_max_height_id:
+        receive_max_height = g_value_get_int(value);
+        return true;
     case jitterbuffer_latency_id:
         jitterbuffer_latency = g_value_get_uint(value);
         return true;
@@ -134,6 +137,9 @@ auto Props::handle_get_prop(const guint id, GValue* const value, GParamSpec* con
     }
     case last_n_id:
         g_value_set_int(value, last_n);
+        return true;
+    case receive_max_height_id:
+        g_value_set_int(value, receive_max_height);
         return true;
     case jitterbuffer_latency_id:
         g_value_set_uint(value, jitterbuffer_latency);
@@ -216,6 +222,14 @@ auto Props::install_props(GObjectClass* const obj) -> void {
                          NULL,
                          "Maximum number of participants to receive streams from (-1 for unlimit)",
                          -1, std::numeric_limits<int>::max(), 0,
+                         rw_construct));
+
+    g_object_class_install_property(
+        obj, receive_max_height_id,
+        g_param_spec_int("receive-max-height",
+                         NULL,
+                         "Receiver default maxHeight (-1 unlimited; -2 do not send)",
+                         -2, std::numeric_limits<int>::max(), -2,
                          rw_construct));
 
     bool_prop(secure_id, "insecure", "Trust server self-signed certification", FALSE);

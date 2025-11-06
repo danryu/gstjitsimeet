@@ -13,6 +13,7 @@ struct Props {
         audio_codec_type_id,
         video_codec_type_id,
         last_n_id,
+        receive_max_height_id,
         jitterbuffer_latency_id,
         secure_id,
         async_sink_id,
@@ -24,6 +25,7 @@ struct Props {
     CodecType   audio_codec_type;
     CodecType   video_codec_type;
     int         last_n;
+    int         receive_max_height = -2; // -2 means: do not send constraints; -1: unlimited; >=0: explicit maxHeight
     guint       jitterbuffer_latency;
     bool        secure=true;
     bool        async_sink;

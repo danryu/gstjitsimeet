@@ -707,11 +707,7 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
 
     co_await event;
 
-    const auto colibri = colibri::Colibri::connect(self.jingle_handler->get_session().initiate_jingle, props.secure);
-    coop_ensure(colibri.get() != nullptr);
-    if(props.last_n >= 0) {
-        colibri->set_last_n(props.last_n);
-    }
+    // moved Colibri ReceiverVideoConstraints after sending Jingle accept (see below)
 
     // create pipeline based on the jingle information
     LOG_DEBUG(logger, "creating pipeline");
@@ -748,6 +744,23 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
     conference->send_iq(std::move(accept_iq), [](bool success) -> void {
         ASSERT(success, "failed to send accept iq");
     });
+
+    // After accept, connect Colibri bridge channel and send receiver constraints
+    {
+        const auto col = colibri::Colibri::connect(self.jingle_handler->get_session().initiate_jingle, props.secure);
+        coop_ensure(col.get() != nullptr);
+        if(props.last_n >= 0) {
+            col->set_last_n(props.last_n);
+        }
+        if(props.receive_max_height != -2) {
+            col->set_default_max_height(props.receive_max_height);
+        }
+        // Pump the Colibri websocket briefly to flush sends
+        for(int i = 0; i < 50; ++i) {
+            col->ws_context.process();
+            co_await coop::sleep(std::chrono::milliseconds(10));
+        }
+    }
 
     self.pipeline_ready.notify();
 
