@@ -707,8 +707,6 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
 
     co_await event;
 
-    // moved Colibri ReceiverVideoConstraints after sending Jingle accept (see below)
-
     // create pipeline based on the jingle information
     LOG_DEBUG(logger, "creating pipeline");
     coop_ensure(construct_sub_pipeline(self));
