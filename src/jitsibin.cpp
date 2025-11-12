@@ -196,7 +196,7 @@ auto rtpbin_new_jitterbuffer_handler(GstElement* const /*rtpbin*/, GstElement* c
 
     g_object_set(jitterbuffer,
                  "do-retransmission", TRUE,
-                 "drop-on-latency", TRUE,
+                 "drop-on-latency", FALSE,
                  "latency", self.props.jitterbuffer_latency,
                  NULL);
 }
@@ -337,6 +337,12 @@ auto rtpbin_pad_added_handler(GstElement* const /*rtpbin*/, GstPad* const pad, g
     unwrap(codec, jingle_session.find_codec_by_tx_pt(pt), "cannot find depayloader for such payload type");
     unwrap(depayloader_name, codec_type_to_depayloader_name.find(codec.type));
     const auto depay = AutoGstObject(gst_element_factory_make(depayloader_name.data(), NULL));
+    // Enable automatic keyframe requests from depay when needed
+    if(g_object_class_find_property(G_OBJECT_GET_CLASS(depay.get()), "request-keyframe") != NULL) {
+        g_object_set(depay.get(),
+                     "request-keyframe", TRUE,
+                     NULL);
+    }
     g_object_set(depay.get(),
                  "auto-header-extension", FALSE,
                  NULL);
