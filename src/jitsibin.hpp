@@ -32,8 +32,5 @@ struct GstJitsiBinClass {
 
 GType gst_jitsibin_get_type(void);
 
-// Runtime control helpers
-void gst_jitsibin_set_source_max_height(GstJitsiBin* bin, const char* source_name, int max_height);
-
 G_END_DECLS
 }
