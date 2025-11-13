@@ -196,7 +196,7 @@ auto rtpbin_new_jitterbuffer_handler(GstElement* const /*rtpbin*/, GstElement* c
 
     g_object_set(jitterbuffer,
                  "do-retransmission", TRUE,
-                 "drop-on-latency", FALSE,
+                 "drop-on-latency", TRUE,  // drop late packets instead of delivering stale deltas
                  "latency", self.props.jitterbuffer_latency,
                  NULL);
 }
