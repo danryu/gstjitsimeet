@@ -147,6 +147,7 @@ auto rtpbin_request_pt_map_handler(GstElement* const /*rtpbin*/, const guint ses
                                     "encoding-name", G_TYPE_STRING, encoding_name.data(),
                                     "clock-rate", G_TYPE_INT, 90000,
                                     "rtcp-fb-nack-pli", G_TYPE_BOOLEAN, TRUE,
+                                    "rtcp-fb-ccm-fir", G_TYPE_BOOLEAN, TRUE,
                                     NULL);
                 if(const auto ext = jingle_session.video_hdrext_transport_cc; ext != -1) {
                     const auto name = std::format("extmap-{}", ext);
