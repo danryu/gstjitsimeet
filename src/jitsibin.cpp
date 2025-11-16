@@ -9,6 +9,7 @@
 
 #include <gst/rtp/gstrtpbasedepayload.h>
 #include <gst/rtp/gstrtpdefs.h>
+#include <gst/rtp/gstrtcpbuffer.h>
 #include <gst/rtp/gstrtphdrext.h>
 
 #include "gstutil/auto-gst-object.hpp"
@@ -106,6 +107,74 @@ auto get_prop(GObject* obj, const guint id, GValue* const value, GParamSpec* con
     self.props.handle_get_prop(id, value, spec);
 }
 
+// send PLI keyframe request for a given ssrc
+auto send_pli_for_ssrc(RealSelf& self, const uint32_t session_id, const uint32_t media_ssrc) -> void {
+    LOG_WARN(logger, "★★★ send_pli_for_ssrc CALLED session={} media_ssrc={:x} ★★★", session_id, media_ssrc);
+    
+    auto rtpbin = gst_bin_get_by_name(self.bin, "rtpbin");
+    if(!rtpbin) {
+        LOG_ERROR(logger, "★★★ PLI FAILED: rtpbin not found ★★★");
+        return;
+    }
+    
+    GObject* session = nullptr;
+    g_signal_emit_by_name(rtpbin, "get-internal-session", session_id, &session);
+    if(!session) {
+        LOG_ERROR(logger, "★★★ PLI FAILED: get-internal-session({}) returned NULL ★★★", session_id);
+        gst_object_unref(rtpbin);
+        return;
+    }
+    
+    // Get our receiver SSRC from session stats
+    GstStructure* stats = nullptr;
+    g_object_get(session, "stats", &stats, NULL);
+    guint32 our_ssrc = 0;
+    if(stats) {
+        gst_structure_get_uint(stats, "internal-ssrc", &our_ssrc);
+        gst_structure_free(stats);
+    }
+    LOG_DEBUG(logger, "PLI: our_ssrc={:x}", our_ssrc);
+    
+    // Create PLI RTCP packet with correct map flags
+    GstRTCPPacket packet;
+    GstRTCPBuffer rtcp = GST_RTCP_BUFFER_INIT;
+    
+    auto buffer = gst_rtcp_buffer_new(1400);
+    if(!gst_rtcp_buffer_map(buffer, GST_MAP_READWRITE, &rtcp)) {
+        LOG_ERROR(logger, "★★★ PLI FAILED: cannot map RTCP buffer ★★★");
+        gst_buffer_unref(buffer);
+        g_object_unref(session);
+        gst_object_unref(rtpbin);
+        return;
+    }
+    
+    if(!gst_rtcp_buffer_add_packet(&rtcp, GST_RTCP_TYPE_PSFB, &packet)) {
+        LOG_ERROR(logger, "★★★ PLI FAILED: cannot add RTCP packet ★★★");
+        gst_rtcp_buffer_unmap(&rtcp);
+        gst_buffer_unref(buffer);
+        g_object_unref(session);
+        gst_object_unref(rtpbin);
+        return;
+    }
+    
+    // Set PLI-specific fields (RFC 4585)
+    gst_rtcp_packet_fb_set_type(&packet, GST_RTCP_PSFB_TYPE_PLI);
+    gst_rtcp_packet_fb_set_sender_ssrc(&packet, our_ssrc);      // Our receiver SSRC
+    gst_rtcp_packet_fb_set_media_ssrc(&packet, media_ssrc);     // Remote sender SSRC
+    
+    gst_rtcp_buffer_unmap(&rtcp);
+    
+    // Inject into RTCP session (priority 2 = immediate)
+    g_signal_emit_by_name(session, "send-rtcp-full", 2, buffer);
+    
+    gst_buffer_unref(buffer);
+    g_object_unref(session);
+    gst_object_unref(rtpbin);
+    
+    LOG_WARN(logger, "★★★ PLI PACKET SENT: session={} our_ssrc={:x} media_ssrc={:x} ★★★",
+             session_id, our_ssrc, media_ssrc);
+}
+
 auto rtpbin_request_pt_map_handler(GstElement* const /*rtpbin*/, const guint session, const guint pt, const gpointer data) -> GstCaps* {
     auto& self = *std::bit_cast<RealSelf*>(data);
     LOG_DEBUG(logger, "rtpbin request-pt-map session={} pt={}", session, pt);
@@ -173,9 +242,9 @@ auto rtpbin_request_pt_map_handler(GstElement* const /*rtpbin*/, const guint ses
     return NULL;
 }
 
-auto rtpbin_new_jitterbuffer_handler(GstElement* const /*rtpbin*/, GstElement* const jitterbuffer, const guint session, const guint ssrc, gpointer const data) -> void {
+auto rtpbin_new_jitterbuffer_handler(GstElement* const /*rtpbin*/, GstElement* const jitterbuffer, const guint session_id, const guint ssrc, gpointer const data) -> void {
     auto& self = *std::bit_cast<RealSelf*>(data);
-    LOG_DEBUG(logger, "rtpbin new-jitterbuffer session={} ssrc={}", session, ssrc);
+    LOG_DEBUG(logger, "rtpbin new-jitterbuffer session={} ssrc={}", session_id, ssrc);
     const auto& jingle_session = self.jingle_handler->get_session();
 
     auto source = (const Source*)(nullptr);
@@ -200,6 +269,84 @@ auto rtpbin_new_jitterbuffer_handler(GstElement* const /*rtpbin*/, GstElement* c
                  "drop-on-latency", TRUE,  // drop late packets instead of delivering stale deltas
                  "latency", self.props.jitterbuffer_latency,
                  NULL);
+
+    LOG_WARN(logger, "★★★ SETTING UP PLI MONITOR for SSRC {:x} ★★★", ssrc);
+
+    // ✅ Monitor packet loss and send PLI using periodic polling
+    struct PLIContext {
+        RealSelf* self;
+        GstElement* jitterbuffer;
+        uint32_t session_id;
+        uint32_t ssrc;
+        guint64 last_pli_time;
+        guint64 last_num_lost;
+        guint64 poll_count;
+        guint timer_id;
+    };
+    
+    auto* ctx = new PLIContext{&self, jitterbuffer, session_id, ssrc, 0, 0, 0, 0};
+    
+    // Poll jitterbuffer stats every 100ms
+    ctx->timer_id = g_timeout_add(100,
+                                   +[](gpointer data) -> gboolean {
+                                       auto* ctx = static_cast<PLIContext*>(data);
+                                       ctx->poll_count++;
+                                       
+                                       if(ctx->poll_count % 50 == 0) {
+                                           LOG_DEBUG(logger, "★★★ PLI monitor polled {} times for SSRC {:x} ★★★",
+                                                   ctx->poll_count, ctx->ssrc);
+                                       }
+                                       
+                                       GstStructure* stats = nullptr;
+                                       g_object_get(ctx->jitterbuffer, "stats", &stats, NULL);
+                                       if(!stats) {
+                                           LOG_ERROR(logger, "★★★ PLI MONITOR: failed to get jitterbuffer stats ★★★");
+                                           return G_SOURCE_CONTINUE;
+                                       }
+                                       
+                                       guint64 num_lost = 0;
+                                       gst_structure_get_uint64(stats, "num-lost", &num_lost);
+                                       
+                                       if(ctx->poll_count % 50 == 0) {
+                                           gchar* stats_str = gst_structure_to_string(stats);
+                                           LOG_DEBUG(logger, "Jitterbuffer stats: {}", stats_str);
+                                           g_free(stats_str);
+                                       }
+                                       
+                                       gst_structure_free(stats);
+                                       
+                                       // Only send PLI if loss count increased
+                                       if(num_lost > ctx->last_num_lost) {
+                                           LOG_WARN(logger, "★★★ PACKET LOSS DETECTED: {} -> {} (delta: {}) for SSRC {:x} ★★★",
+                                                   ctx->last_num_lost, num_lost, num_lost - ctx->last_num_lost, ctx->ssrc);
+                                           
+                                           const guint64 now = g_get_monotonic_time();
+                                           // Rate-limit: max 1 PLI per 500ms per source
+                                           if(now - ctx->last_pli_time >= 500000) {
+                                               send_pli_for_ssrc(*ctx->self, ctx->session_id, ctx->ssrc);
+                                               ctx->last_pli_time = now;
+                                               ctx->last_num_lost = num_lost;
+                                           } else {
+                                               LOG_DEBUG(logger, "PLI rate-limited (last sent {} us ago)", now - ctx->last_pli_time);
+                                           }
+                                       }
+                                       
+                                       return G_SOURCE_CONTINUE; // Keep timer running
+                                   }, ctx);
+    
+    // Clean up timer when jitterbuffer is destroyed
+    g_object_weak_ref(G_OBJECT(jitterbuffer),
+                      +[](gpointer data, GObject* /*where_the_object_was*/) {
+                          auto* ctx = static_cast<PLIContext*>(data);
+                          LOG_WARN(logger, "★★★ PLI MONITOR DESTROYED for SSRC {:x} (polled {} times) ★★★",
+                                  ctx->ssrc, ctx->poll_count);
+                          if(ctx->timer_id != 0) {
+                              g_source_remove(ctx->timer_id);
+                          }
+                          delete ctx;
+                      }, ctx);
+    
+    LOG_WARN(logger, "★★★ PLI MONITOR SETUP COMPLETE for SSRC {:x} (polling every 100ms) ★★★", ssrc);
 }
 
 auto aux_handler_create_pt_map(const std::span<const Codec> codecs) -> AutoGstStructure {
