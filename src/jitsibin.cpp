@@ -7,9 +7,6 @@
 #include <coop/thread.hpp>
 #include <coop/timer.hpp>
 
-#include <mutex>
-#include <unordered_map>
-
 #include <gst/rtp/gstrtpbasedepayload.h>
 #include <gst/rtp/gstrtpdefs.h>
 #include <gst/rtp/gstrtcpbuffer.h>
@@ -54,10 +51,6 @@ struct RealSelf {
     bool              connection_aborted = false;
 
     Props props;
-
-    // Track last-PLI time per SSRC for keyframe correlation
-    std::mutex                                      pli_times_mutex;
-    std::unordered_map<uint32_t, guint64>           last_pli_time_us_by_ssrc;
 
     // for unblocking setup
     struct SinkElements {
@@ -132,7 +125,7 @@ auto send_pli_for_ssrc(RealSelf& self, const uint32_t session_id, const uint32_t
         return;
     }
     
-    // Try to get our receiver SSRC (optional; for diagnostics)
+    // Get our receiver SSRC from session stats
     GstStructure* stats = nullptr;
     g_object_get(session, "stats", &stats, NULL);
     guint32 our_ssrc = 0;
@@ -140,7 +133,7 @@ auto send_pli_for_ssrc(RealSelf& self, const uint32_t session_id, const uint32_t
         gst_structure_get_uint(stats, "internal-ssrc", &our_ssrc);
         gst_structure_free(stats);
     }
-    LOG_DEBUG(logger, "PLI: our_ssrc (diagnostic) = {:x}", our_ssrc);
+    LOG_DEBUG(logger, "PLI: our_ssrc={:x}", our_ssrc);
     
     // Create PLI RTCP packet with correct map flags
     GstRTCPPacket packet;
@@ -164,21 +157,21 @@ auto send_pli_for_ssrc(RealSelf& self, const uint32_t session_id, const uint32_t
         return;
     }
     
-    // Set PLI-specific fields (RFC 4585). Sender SSRC will be finalized by rtpbin.
+    // Set PLI-specific fields (RFC 4585)
     gst_rtcp_packet_fb_set_type(&packet, GST_RTCP_PSFB_TYPE_PLI);
-    gst_rtcp_packet_fb_set_sender_ssrc(&packet, our_ssrc);      // Diagnostic; rtpbin may overwrite
+    gst_rtcp_packet_fb_set_sender_ssrc(&packet, our_ssrc);      // Our receiver SSRC
     gst_rtcp_packet_fb_set_media_ssrc(&packet, media_ssrc);     // Remote sender SSRC
     
     gst_rtcp_buffer_unmap(&rtcp);
     
-    // Ask the session to send RTCP; it will stamp the correct sender SSRC.
-    g_signal_emit_by_name(session, "send-rtcp", buffer);
+    // Inject into RTCP session (priority 2 = immediate)
+    g_signal_emit_by_name(session, "send-rtcp-full", 2, buffer);
     
     gst_buffer_unref(buffer);
     g_object_unref(session);
     gst_object_unref(rtpbin);
     
-    LOG_WARN(logger, "★★★ PLI PACKET SENT: session={} our_ssrc(dbg)={:x} media_ssrc={:x} ★★★",
+    LOG_WARN(logger, "★★★ PLI PACKET SENT: session={} our_ssrc={:x} media_ssrc={:x} ★★★",
              session_id, our_ssrc, media_ssrc);
 }
 
@@ -332,11 +325,6 @@ auto rtpbin_new_jitterbuffer_handler(GstElement* const /*rtpbin*/, GstElement* c
                                            if(now - ctx->last_pli_time >= 500000) {
                                                send_pli_for_ssrc(*ctx->self, ctx->session_id, ctx->ssrc);
                                                ctx->last_pli_time = now;
-                                               // publish last-PLI time globally for keyframe correlation
-                                               {
-                                                   std::scoped_lock lk(ctx->self->pli_times_mutex);
-                                                   ctx->self->last_pli_time_us_by_ssrc[ctx->ssrc] = now;
-                                               }
                                                ctx->last_num_lost = num_lost;
                                            } else {
                                                LOG_DEBUG(logger, "PLI rate-limited (last sent {} us ago)", now - ctx->last_pli_time);
@@ -520,46 +508,6 @@ auto rtpbin_pad_added_handler(GstElement* const /*rtpbin*/, GstPad* const pad, g
     const auto depay_src_pad = AutoGstObject(gst_element_get_static_pad(depay.get(), "src"));
     ensure(depay_src_pad.get() != NULL);
 
-    // Install keyframe detector probe for this SSRC
-    {
-        struct KeyframeProbeCtx {
-            RealSelf* self;
-            uint32_t  ssrc;
-        };
-        auto* kctx = new KeyframeProbeCtx{&self, ssrc};
-        gst_pad_add_probe(depay_src_pad.get(), GST_PAD_PROBE_TYPE_BUFFER,
-                          +[](GstPad* /*pad*/, GstPadProbeInfo* info, gpointer data) -> GstPadProbeReturn {
-                              auto* ctx = static_cast<KeyframeProbeCtx*>(data);
-                              auto* buffer = GST_PAD_PROBE_INFO_BUFFER(info);
-                              if(buffer == NULL) {
-                                  return GST_PAD_PROBE_OK;
-                              }
-                              // Keyframe if DELTA flag is not set
-                              if((GST_BUFFER_FLAGS(buffer) & GST_BUFFER_FLAG_DELTA_UNIT) == 0) {
-                                  const guint64 now = g_get_monotonic_time();
-                                  guint64 last_pli = 0;
-                                  bool    have_pli = false;
-                                  {
-                                      std::scoped_lock lk(ctx->self->pli_times_mutex);
-                                      auto it = ctx->self->last_pli_time_us_by_ssrc.find(ctx->ssrc);
-                                      if(it != ctx->self->last_pli_time_us_by_ssrc.end()) {
-                                          last_pli = it->second;
-                                          have_pli = true;
-                                      }
-                                  }
-                                  if(have_pli && now >= last_pli && (now - last_pli) <= 2000000) {
-                                      LOG_WARN(logger, "★★★ KEYFRAME DETECTED {:>6} ms after PLI for SSRC {:x} ★★★",
-                                               (now - last_pli) / 1000, ctx->ssrc);
-                                  }
-                              }
-                              return GST_PAD_PROBE_OK;
-                          },
-                          kctx,
-                          +[](gpointer data) {
-                              delete static_cast<KeyframeProbeCtx*>(data);
-                          });
-    }
-
     const auto ghost_pad = AutoGstObject(gst_ghost_pad_new(ghost_pad_name.data(), depay_src_pad.get()));
     ensure(ghost_pad.get() != NULL);
 
@@ -710,42 +658,6 @@ auto construct_sub_pipeline(RealSelf& self) -> bool {
 
     self.audio_sink_elements.real_sink = audio_pay;
     self.video_sink_elements.real_sink = video_pay;
-
-    // Install RTCP egress inspector on rtpbin:send_rtcp_src_0
-    {
-        const auto rtcp_src_pad = AutoGstObject(gst_element_get_static_pad(rtpbin, "send_rtcp_src_0"));
-        if(rtcp_src_pad.get() != NULL) {
-            gst_pad_add_probe(rtcp_src_pad.get(), GST_PAD_PROBE_TYPE_BUFFER,
-                              +[](GstPad* /*pad*/, GstPadProbeInfo* info, gpointer /*user_data*/) -> GstPadProbeReturn {
-                                  auto* buffer = GST_PAD_PROBE_INFO_BUFFER(info);
-                                  if(buffer == NULL) {
-                                      return GST_PAD_PROBE_OK;
-                                  }
-                                  GstRTCPBuffer rtcp = GST_RTCP_BUFFER_INIT;
-                                  if(!gst_rtcp_buffer_map(buffer, GST_MAP_READ, &rtcp)) {
-                                      return GST_PAD_PROBE_OK;
-                                  }
-                                  GstRTCPPacket packet;
-                                  if(gst_rtcp_buffer_get_first_packet(&rtcp, &packet)) {
-                                      do {
-                                          if(gst_rtcp_packet_get_type(&packet) == GST_RTCP_TYPE_PSFB) {
-                                              const auto fb_type = gst_rtcp_packet_fb_get_type(&packet);
-                                              if(fb_type == GST_RTCP_PSFB_TYPE_PLI) {
-                                                  const guint32 sender = gst_rtcp_packet_fb_get_sender_ssrc(&packet);
-                                                  const guint32 media  = gst_rtcp_packet_fb_get_media_ssrc(&packet);
-                                                  LOG_WARN(logger, "★★★ OUTGOING RTCP PLI: sender_ssrc={:x} media_ssrc={:x} ★★★", sender, media);
-                                              }
-                                          }
-                                      } while(gst_rtcp_packet_move_to_next(&packet));
-                                  }
-                                  gst_rtcp_buffer_unmap(&rtcp);
-                                  return GST_PAD_PROBE_OK;
-                              },
-                              NULL, NULL);
-        } else {
-            LOG_WARN(logger, "RTCP egress probe not installed: send_rtcp_src_0 pad not found");
-        }
-    }
 
     return true;
 }
