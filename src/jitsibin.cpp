@@ -801,6 +801,9 @@ auto null_to_ready(RealSelf& self) -> bool {
 }
 
 auto ready_to_null(RealSelf& self) -> bool {
+    if(self.ws_context.state == ws::client::State::Connected) {
+        self.ws_context.shutdown();
+    }
     if(self.runner_thread.joinable()) {
         self.injector.inject_task([](RealSelf& self) -> coop::Async<void> {
             self.ws_task.cancel();
@@ -809,9 +812,6 @@ auto ready_to_null(RealSelf& self) -> bool {
             co_return;
         }(self));
         self.runner_thread.join();
-    }
-    if(self.ws_context.state == ws::client::State::Connected) {
-        self.ws_context.shutdown();
     }
     return true;
 }
