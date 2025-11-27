@@ -625,7 +625,7 @@ struct ConferenceCallbacks : public conference::ConferenceCallbacks {
     }
 };
 
-auto pinger_main(std::weak_ptr<conference::Conference> weak_conference) -> coop::Async<void> {
+auto pinger_main(conference::Conference& conference) -> coop::Async<void> {
     static const auto iq = xmpp::elm::iq.clone()
                                .append_attrs({
                                    {"type", "get"},
@@ -634,11 +634,7 @@ auto pinger_main(std::weak_ptr<conference::Conference> weak_conference) -> coop:
                                    xmpp::elm::ping,
                                });
 loop:
-    if(auto conference = weak_conference.lock()) {
-        conference->send_iq(iq, {});
-    } else {
-        co_return;
-    }
+    conference.send_iq(iq, {});
     co_await coop::sleep(std::chrono::seconds(10));
     goto loop;
 }
@@ -693,7 +689,7 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
     callbacks.ws_context     = &ws_context;
     callbacks.jingle_handler = &jingle_handler;
     self.jingle_handler      = &jingle_handler;
-    std::shared_ptr<conference::Conference> conference = conference::Conference::create(
+    const auto conference    = conference::Conference::create(
         conference::Config{
                .jid              = self.jid,
                .room             = props.room_name,
@@ -774,7 +770,7 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
     self.pipeline_ready.notify();
 
     auto ping_task = coop::TaskHandle();
-    self.runner.push_task(pinger_main(conference), &ping_task);
+    self.runner.push_task(pinger_main(*conference), &ping_task);
     co_await ws_context.disconnected;
     ping_task.cancel();
 
@@ -805,12 +801,10 @@ auto null_to_ready(RealSelf& self) -> bool {
 }
 
 auto ready_to_null(RealSelf& self) -> bool {
-    LOG_DEBUG(logger, "ready_to_null: stopping websocket...");
-    if(self.ws_context.context) {
+    if(self.ws_context.state == ws::client::State::Connected) {
         self.ws_context.shutdown();
     }
     if(self.runner_thread.joinable()) {
-        LOG_DEBUG(logger, "ready_to_null: joining runner thread...");
         self.injector.inject_task([](RealSelf& self) -> coop::Async<void> {
             self.ws_task.cancel();
             self.connection_task.cancel();
@@ -818,7 +812,6 @@ auto ready_to_null(RealSelf& self) -> bool {
             co_return;
         }(self));
         self.runner_thread.join();
-        LOG_DEBUG(logger, "ready_to_null: runner thread joined.");
     }
     return true;
 }
