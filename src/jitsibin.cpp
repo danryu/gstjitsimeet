@@ -39,6 +39,7 @@ struct RealSelf {
     JingleHandler*             jingle_handler;
     xmpp::Jid                  jid;
     std::vector<xmpp::Service> extenal_services;
+    conference::Conference*    conference = nullptr;  // For mute signaling
 
     coop::Runner       runner;
     coop::TaskInjector injector = coop::TaskInjector(runner);
@@ -98,6 +99,15 @@ auto set_prop(GObject* obj, const guint id, const GValue* const value, GParamSpe
     const auto jitsibin = GST_JITSIBIN(obj);
     auto&      self     = *jitsibin->real_self;
     self.props.handle_set_prop(id, value, spec);
+
+    // If connected, signal mute state changes to server
+    if(self.conference != nullptr) {
+        if(id == Props::audio_muted_id) {
+            self.conference->set_audio_muted(self.props.audio_muted);
+        } else if(id == Props::video_muted_id) {
+            self.conference->set_video_muted(self.props.video_muted);
+        }
+    }
 }
 
 auto get_prop(GObject* obj, const guint id, GValue* const value, GParamSpec* const spec) -> void {
@@ -695,10 +705,11 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
                .room             = props.room_name,
                .nick             = props.nick,
                .video_codec_type = props.video_codec_type,
-               .audio_muted      = false,
-               .video_muted      = false,
+               .audio_muted      = props.audio_muted,
+               .video_muted      = props.video_muted,
         },
         &callbacks);
+    self.conference = conference.get();  // Store pointer for mute signaling
     ws_context.handler = [&conference](const std::span<const std::byte> data) -> coop::Async<void> {
         conference->feed_payload(from_span(data));
         co_return;
@@ -801,6 +812,7 @@ auto null_to_ready(RealSelf& self) -> bool {
 }
 
 auto ready_to_null(RealSelf& self) -> bool {
+    self.conference = nullptr;  // Clear conference pointer
     if(self.ws_context.state == ws::client::State::Connected) {
         self.ws_context.shutdown();
     }

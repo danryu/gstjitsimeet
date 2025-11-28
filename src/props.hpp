@@ -17,6 +17,8 @@ struct Props {
         jitterbuffer_latency_id,
         secure_id,
         async_sink_id,
+        audio_muted_id,
+        video_muted_id,
     };
 
     std::string server_address;
@@ -29,6 +31,8 @@ struct Props {
     guint       jitterbuffer_latency;
     bool        secure=true;
     bool        async_sink;
+    bool        audio_muted = false;
+    bool        video_muted = false;
 
     auto ensure_required_prop() const -> bool;
     auto handle_set_prop(const guint id, const GValue* value, GParamSpec* spec) -> bool;
