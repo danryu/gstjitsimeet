@@ -44,6 +44,7 @@ struct RealSelf {
     coop::TaskInjector injector = coop::TaskInjector(runner);
     coop::TaskHandle   connection_task;
     coop::TaskHandle   ws_task;
+    coop::TaskHandle   ping_task;
     std::thread        runner_thread;
 
     coop::AtomicEvent pipeline_ready;
@@ -751,10 +752,9 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
 
     self.pipeline_ready.notify();
 
-    auto ping_task = coop::TaskHandle();
-    self.runner.push_task(pinger_main(*conference), &ping_task);
+    self.runner.push_task(pinger_main(*conference), &self.ping_task);
     co_await ws_context.disconnected;
-    ping_task.cancel();
+    self.ping_task.cancel();
 
     co_return true;
 }
@@ -785,6 +785,9 @@ auto null_to_ready(RealSelf& self) -> bool {
 auto ready_to_null(RealSelf& self) -> bool {
     if(self.runner_thread.joinable()) {
         self.injector.inject_task([](RealSelf& self) -> coop::Async<void> {
+            // Cancel pinger first - it holds a reference to conference which
+            // will be destroyed when connection_task is cancelled
+            self.ping_task.cancel();
             self.ws_task.cancel();
             self.connection_task.cancel();
             self.injector.blocker.stop();
