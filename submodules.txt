@@ -1,4 +1,9 @@
 libjitsimeet https://github.com/danryu/libjitsimeet.git kdev
-cutil https://github.com/mojyack/cutil.git 727f2eb4fced457d3b8ccf21e82408a3a4fa3df5
-cutil-macros https://github.com/mojyack/cutil-macros.git 986ced60b3c5c99364201f83a26ee5433a91a5f8
-gstreamer-utils https://github.com/mojyack/gstreamer-utils.git fd7ecf85a4031a74f5cda92bce6feac809116a45
+cutil https://github.com/mojyack/cutil.git d3c64048ac2635b231d6c733a5a15dae4e28b22d
+cutil-macros https://github.com/danryu/cutil-macros.git b22432a7eaf4c38ff97c6a09e69560c81469694d
+gstreamer-utils https://github.com/mojyack/gstreamer-utils.git 2477f7f8dc7229340e4b5f5bacf0bb17c770d8db
+crypto-utils https://github.com/mojyack/crypto-utils.git fead15d35f50809a057fc544966afaffa3e6d3c8
+serde https://github.com/mojyack/serde.git 10399308f8a38d97f7b489b5c980c81e6fe5d860
+tinyjson https://github.com/mojyack/tinyjson.git 9ecd79da797e8d7f8d21d4c4045e6e3e27dd76a7
+tinyxml https://github.com/mojyack/tinyxml.git 29dc7b3d6a3e349789d74eb533530140f48fef5a
+websocket-cpp https://github.com/mojyack/websocket-cpp.git 58c4069075ece36b250d63619b40d6f9f123bc63
