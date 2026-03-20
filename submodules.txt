@@ -1,6 +1,6 @@
 libjitsimeet https://github.com/danryu/libjitsimeet.git kdev
 cutil https://github.com/mojyack/cutil.git d3c64048ac2635b231d6c733a5a15dae4e28b22d
-cutil-macros https://github.com/danryu/cutil-macros.git b22432a7eaf4c38ff97c6a09e69560c81469694d
+cutil-macros https://github.com/danryu/cutil-macros.git 16d9bb0b326806ed1bd61a04f87ce4eb57bff27b
 gstreamer-utils https://github.com/mojyack/gstreamer-utils.git 2477f7f8dc7229340e4b5f5bacf0bb17c770d8db
 crypto-utils https://github.com/mojyack/crypto-utils.git fead15d35f50809a057fc544966afaffa3e6d3c8
 serde https://github.com/mojyack/serde.git 10399308f8a38d97f7b489b5c980c81e6fe5d860
