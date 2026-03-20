@@ -1,23 +1,13 @@
 project('gstjitsimeet', 'cpp', version : '0.0', default_options : ['warning_level=3'])
 
-cpp = meson.get_compiler('cpp')
-
-if cpp.get_id() == 'msvc'
-  add_project_arguments(
-    '/std:c++latest',
-    '/Zc:preprocessor',  # required for __VA_OPT__ (used in cutil-macros)
-    language : 'cpp'
-  )
-else
-  add_project_arguments(
-    '-std=c++23',
-    '-Wfatal-errors',
-    '-fpermissive',
-    '-Wno-narrowing',
-    '-Wno-missing-field-initializers',
-    language : 'cpp'
-  )
-endif
+add_project_arguments(
+  '-std=c++23',
+  '-Wfatal-errors',
+  '-fpermissive',
+  '-Wno-narrowing',
+  '-Wno-missing-field-initializers',
+  language : 'cpp'
+)
 
 gstreamer_dep = dependency('gstreamer-1.0', version : ['>=1.20'])
 
