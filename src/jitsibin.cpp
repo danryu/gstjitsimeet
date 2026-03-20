@@ -24,11 +24,11 @@
 #include "jitsi/xmpp/elements.hpp"
 #include "jitsi/xmpp/negotiator.hpp"
 #include "jitsibin.hpp"
-#include "macros/autoptr.hpp"
+#include "jitsi/macros/autoptr.hpp"
 #include "props.hpp"
 
 #define CUTIL_MACROS_PRINT_FUNC(...) LOG_ERROR(logger, __VA_ARGS__)
-#include "macros/coop-unwrap.hpp"
+#include "jitsi/macros/coop-unwrap.hpp"
 
 #define gst_jitsibin_parent_class parent_class
 G_DEFINE_TYPE(GstJitsiBin, gst_jitsibin, GST_TYPE_BIN);
