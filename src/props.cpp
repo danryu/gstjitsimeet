@@ -4,9 +4,9 @@
 
 #include <gst/gstutils.h>
 
-#include "macros/unwrap.hpp"
+#include "jitsi/macros/unwrap.hpp"
 #include "props.hpp"
-#include "util/pair-table.hpp"
+#include "jitsi/util/pair-table.hpp"
 
 namespace {
 enum class AudioCodecType {
