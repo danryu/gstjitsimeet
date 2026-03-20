@@ -657,8 +657,8 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
         callbacks.ws_context  = &ws_context;
         const auto negotiator = xmpp::Negotiator::create(props.server_address, &callbacks);
 
-        ws_context.handler = [&negotiator, &event](const std::span<const std::byte> data) -> coop::Async<void> {
-            switch(negotiator->feed_payload(from_span(data))) {
+        ws_context.handler = [&negotiator, &event](PrependableBuffer data) -> coop::Async<void> {
+            switch(negotiator->feed_payload(from_span(data.body()))) {
             case xmpp::FeedResult::Continue:
                 break;
             case xmpp::FeedResult::Error:
@@ -693,8 +693,8 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
                .video_muted      = false,
         },
         &callbacks);
-    ws_context.handler = [&conference](const std::span<const std::byte> data) -> coop::Async<void> {
-        conference->feed_payload(from_span(data));
+    ws_context.handler = [&conference](PrependableBuffer data) -> coop::Async<void> {
+        conference->feed_payload(from_span(data.body()));
         co_return;
     };
     conference->start_negotiation();
