@@ -1,3 +1,5 @@
+#include <memory>
+
 #include <coop/blocker.hpp>
 #include <coop/generator.hpp>
 #include <coop/parallel.hpp>
@@ -39,6 +41,8 @@ struct RealSelf {
     JingleHandler*             jingle_handler;
     xmpp::Jid                  jid;
     std::vector<xmpp::Service> extenal_services;
+    conference::Conference*    conference = nullptr;
+    std::unique_ptr<colibri::Colibri> colibri;
 
     coop::Runner       runner;
     coop::TaskInjector injector = coop::TaskInjector(runner);
@@ -99,6 +103,13 @@ auto set_prop(GObject* obj, const guint id, const GValue* const value, GParamSpe
     const auto jitsibin = GST_JITSIBIN(obj);
     auto&      self     = *jitsibin->real_self;
     self.props.handle_set_prop(id, value, spec);
+    if(self.conference != nullptr) {
+        if(id == Props::audio_muted_id) {
+            self.conference->set_audio_muted(self.props.audio_muted);
+        } else if(id == Props::video_muted_id) {
+            self.conference->set_video_muted(self.props.video_muted);
+        }
+    }
 }
 
 auto get_prop(GObject* obj, const guint id, GValue* const value, GParamSpec* const spec) -> void {
@@ -646,6 +657,7 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
             .protocol  = "xmpp",
             .port      = 30443,
             .ssl_level = props.secure ? ws::client::SSLLevel::Enable : ws::client::SSLLevel::TrustSelfSigned,
+            .keepalive = {.time = 25, .probes = 3, .interval = 5},
         }));
 
     self.runner.push_task(ws_context.process_until_finish(), &self.ws_task);
@@ -689,10 +701,11 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
                .room             = props.room_name,
                .nick             = props.nick,
                .video_codec_type = props.video_codec_type,
-               .audio_muted      = false,
-               .video_muted      = false,
+               .audio_muted      = props.audio_muted,
+               .video_muted      = props.video_muted,
         },
         &callbacks);
+    self.conference = conference.get();
     ws_context.handler = [&conference](PrependableBuffer data) -> coop::Async<void> {
         conference->feed_payload(from_span(data.body()));
         co_return;
@@ -707,12 +720,6 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
     }
 
     co_await event;
-
-    const auto colibri = colibri::Colibri::connect(self.jingle_handler->get_session().initiate_jingle, props.secure);
-    coop_ensure(colibri.get() != nullptr);
-    if(props.last_n >= 0) {
-        colibri->set_last_n(props.last_n);
-    }
 
     // create pipeline based on the jingle information
     LOG_DEBUG(logger, "creating pipeline");
@@ -750,6 +757,23 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
         ASSERT(success, "failed to send accept iq");
     });
 
+    // After accept, connect Colibri bridge channel and send receiver constraints
+    {
+        auto col = colibri::Colibri::connect(self.jingle_handler->get_session().initiate_jingle, props.secure);
+        coop_ensure(col.get() != nullptr);
+        self.colibri = std::move(col);
+        if(props.last_n >= 0) {
+            self.colibri->set_last_n(props.last_n);
+        }
+        if(props.receive_max_height != -2) {
+            self.colibri->set_default_max_height(props.receive_max_height);
+        }
+        for(int i = 0; i < 50; ++i) {
+            self.colibri->ws_context.process();
+            co_await coop::sleep(std::chrono::milliseconds(10));
+        }
+    }
+
     self.pipeline_ready.notify();
 
     self.runner.push_task(pinger_main(*conference), &self.ping_task);
@@ -783,6 +807,11 @@ auto null_to_ready(RealSelf& self) -> bool {
 }
 
 auto ready_to_null(RealSelf& self) -> bool {
+    self.conference = nullptr;
+    self.colibri.reset();
+    if(self.ws_context.state == ws::client::State::Connected) {
+        self.ws_context.shutdown();
+    }
     if(self.runner_thread.joinable()) {
         self.injector.inject_task([](RealSelf& self) -> coop::Async<void> {
             // Cancel pinger first - it holds a reference to conference which
@@ -794,9 +823,6 @@ auto ready_to_null(RealSelf& self) -> bool {
             co_return;
         }(self));
         self.runner_thread.join();
-    }
-    if(self.ws_context.state == ws::client::State::Connected) {
-        self.ws_context.shutdown();
     }
     return true;
 }
@@ -829,6 +855,19 @@ auto change_state(GstElement* element, const GstStateChange transition) -> GstSt
     return ret;
 }
 } // namespace
+
+extern "C" void gst_jitsibin_set_source_max_height(GstJitsiBin* bin, const char* source_name, const gint max_height) {
+    g_return_if_fail(GST_IS_JITSIBIN(bin));
+    g_return_if_fail(source_name != nullptr);
+    auto& self = *bin->real_self;
+    if(!self.colibri) {
+        return;
+    }
+    self.colibri->set_source_max_height(source_name, static_cast<int>(max_height));
+    for(int i = 0; i < 20; ++i) {
+        self.colibri->ws_context.process();
+    }
+}
 
 auto gst_jitsibin_init(GstJitsiBin* jitsibin) -> void {
     jitsibin->real_self      = new RealSelf();

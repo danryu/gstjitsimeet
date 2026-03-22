@@ -97,6 +97,9 @@ auto Props::handle_set_prop(const guint id, const GValue* const value, GParamSpe
     case last_n_id:
         last_n = g_value_get_int(value);
         return true;
+    case receive_max_height_id:
+        receive_max_height = g_value_get_int(value);
+        return true;
     case jitterbuffer_latency_id:
         jitterbuffer_latency = g_value_get_uint(value);
         return true;
@@ -105,6 +108,12 @@ auto Props::handle_set_prop(const guint id, const GValue* const value, GParamSpe
         return true;
     case async_sink_id:
         async_sink = g_value_get_boolean(value) == TRUE;
+        return true;
+    case audio_muted_id:
+        audio_muted = g_value_get_boolean(value) == TRUE;
+        return true;
+    case video_muted_id:
+        video_muted = g_value_get_boolean(value) == TRUE;
         return true;
     default:
         return false;
@@ -135,6 +144,9 @@ auto Props::handle_get_prop(const guint id, GValue* const value, GParamSpec* con
     case last_n_id:
         g_value_set_int(value, last_n);
         return true;
+    case receive_max_height_id:
+        g_value_set_int(value, receive_max_height);
+        return true;
     case jitterbuffer_latency_id:
         g_value_set_uint(value, jitterbuffer_latency);
         return true;
@@ -143,6 +155,12 @@ auto Props::handle_get_prop(const guint id, GValue* const value, GParamSpec* con
         return true;
     case async_sink_id:
         g_value_set_boolean(value, async_sink ? TRUE : FALSE);
+        return true;
+    case audio_muted_id:
+        g_value_set_boolean(value, audio_muted ? TRUE : FALSE);
+        return true;
+    case video_muted_id:
+        g_value_set_boolean(value, video_muted ? TRUE : FALSE);
         return true;
     default:
         return false;
@@ -218,8 +236,18 @@ auto Props::install_props(GObjectClass* const obj) -> void {
                          -1, std::numeric_limits<int>::max(), 0,
                          rw_construct));
 
+    g_object_class_install_property(
+        obj, receive_max_height_id,
+        g_param_spec_int("receive-max-height",
+                         NULL,
+                         "Receiver default maxHeight (-1 unlimited; -2 do not send)",
+                         -2, std::numeric_limits<int>::max(), -2,
+                         rw_construct));
+
     bool_prop(secure_id, "insecure", "Trust server self-signed certification", FALSE);
     bool_prop(async_sink_id, "force-play", "Force pipeline to play even in conference with no participants", FALSE);
+    bool_prop(audio_muted_id, "audio-muted", "Mute local audio (signals to server)", FALSE);
+    bool_prop(video_muted_id, "video-muted", "Mute local video (signals to server)", FALSE);
 
     gst_type_mark_as_plugin_api(audio_codec_type_get_type(), GstPluginAPIFlags(0));
     gst_type_mark_as_plugin_api(video_codec_type_get_type(), GstPluginAPIFlags(0));
