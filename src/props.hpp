@@ -19,6 +19,7 @@ struct Props {
         async_sink_id,
         audio_muted_id,
         video_muted_id,
+        server_port_id,
     };
 
     std::string server_address;
@@ -29,6 +30,7 @@ struct Props {
     int         last_n;
     int         receive_max_height = -2; // -2: omit defaultConstraints; -1: unlimited; >=0: maxHeight
     guint       jitterbuffer_latency;
+    int         server_port = 443;
     bool        secure=true;
     bool        async_sink;
     bool        audio_muted = false;

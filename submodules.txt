@@ -6,4 +6,4 @@ crypto-utils https://github.com/mojyack/crypto-utils.git fead15d35f50809a057fc54
 serde https://github.com/mojyack/serde.git 10399308f8a38d97f7b489b5c980c81e6fe5d860
 tinyjson https://github.com/mojyack/tinyjson.git 9ecd79da797e8d7f8d21d4c4045e6e3e27dd76a7
 tinyxml https://github.com/mojyack/tinyxml.git 29dc7b3d6a3e349789d74eb533530140f48fef5a
-websocket-cpp https://github.com/mojyack/websocket-cpp.git 58c4069075ece36b250d63619b40d6f9f123bc63
+websocket-cpp https://github.com/danryu/websocket-cpp.git kdev

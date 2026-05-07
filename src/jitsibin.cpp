@@ -649,13 +649,14 @@ auto connect_to_conference(RealSelf& self) -> coop::Async<bool> {
 
     const auto ws_path    = std::format("xmpp-websocket?room={}", props.room_name);
     auto&      ws_context = self.ws_context;
+    LOG_INFO(logger, "connecting to wss://{}:{}/{}", props.server_address, props.server_port, ws_path);
     coop_ensure(ws_context.init(
         self.injector,
         {
             .address   = props.server_address.data(),
             .path      = ws_path.data(),
             .protocol  = "xmpp",
-            .port      = 30443,
+            .port      = props.server_port,
             .ssl_level = props.secure ? ws::client::SSLLevel::Enable : ws::client::SSLLevel::TrustSelfSigned,
             .keepalive = {.time = 25, .probes = 3, .interval = 5},
         }));
