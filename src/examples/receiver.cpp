@@ -26,7 +26,7 @@ auto jitsibin_pad_added_handler(GstElement* const /*jitsibin*/, GstPad* const pa
     const auto name   = std::string_view(name_g.get());
     PRINT("pad added name={}", name);
 
-    unwrap_v(pad_name, parse_jitsibin_pad_name(name));
+    unwrap(pad_name, parse_jitsibin_pad_name(name));
 
     auto decoder = std::string();
     // TODO: handle all codec type
@@ -45,31 +45,31 @@ auto jitsibin_pad_added_handler(GstElement* const /*jitsibin*/, GstPad* const pa
     }
 
     if(decoder == "TODO") {
-        unwrap_v_mut(fakesink, add_new_element_to_pipeine(self.pipeline, "fakesink"));
+        unwrap_mut(fakesink, add_new_element_to_pipeine(self.pipeline, "fakesink"));
         const auto fakesink_sink_pad = AutoGstObject(gst_element_get_static_pad(&fakesink, "sink"));
-        ensure_v(fakesink_sink_pad.get() != NULL);
-        ensure_v(gst_pad_link(pad, fakesink_sink_pad.get()) == GST_PAD_LINK_OK);
-        ensure_v(gst_element_sync_state_with_parent(&fakesink) == TRUE);
+        ensure(fakesink_sink_pad.get() != NULL);
+        ensure(gst_pad_link(pad, fakesink_sink_pad.get()) == GST_PAD_LINK_OK);
+        ensure(gst_element_sync_state_with_parent(&fakesink) == TRUE);
         return;
     }
 
     // for video
-    unwrap_v_mut(dec, add_new_element_to_pipeine(self.pipeline, decoder.data()));
-    unwrap_v_mut(videoconvert, add_new_element_to_pipeine(self.pipeline, "videoconvert"));
-    unwrap_v_mut(waylandsink, add_new_element_to_pipeine(self.pipeline, "waylandsink"));
+    unwrap_mut(dec, add_new_element_to_pipeine(self.pipeline, decoder.data()));
+    unwrap_mut(videoconvert, add_new_element_to_pipeine(self.pipeline, "videoconvert"));
+    unwrap_mut(waylandsink, add_new_element_to_pipeine(self.pipeline, "waylandsink"));
     g_object_set(&dec,
                  "automatic-request-sync-points", TRUE,
                  "automatic-request-sync-point-flags", GST_VIDEO_DECODER_REQUEST_SYNC_POINT_CORRUPT_OUTPUT,
                  NULL);
 
     const auto dec_sink_pad = AutoGstObject(gst_element_get_static_pad(&dec, "sink"));
-    ensure_v(dec_sink_pad.get() != NULL);
-    ensure_v(gst_pad_link(pad, GST_PAD(dec_sink_pad.get())) == GST_PAD_LINK_OK);
-    ensure_v(gst_element_link_pads(&dec, NULL, &videoconvert, NULL) == TRUE);
-    ensure_v(gst_element_link_pads(&videoconvert, NULL, &waylandsink, NULL) == TRUE);
-    ensure_v(gst_element_sync_state_with_parent(&videoconvert) == TRUE);
-    ensure_v(gst_element_sync_state_with_parent(&waylandsink) == TRUE);
-    ensure_v(gst_element_sync_state_with_parent(&dec) == TRUE);
+    ensure(dec_sink_pad.get() != NULL);
+    ensure(gst_pad_link(pad, GST_PAD(dec_sink_pad.get())) == GST_PAD_LINK_OK);
+    ensure(gst_element_link_pads(&dec, NULL, &videoconvert, NULL) == TRUE);
+    ensure(gst_element_link_pads(&videoconvert, NULL, &waylandsink, NULL) == TRUE);
+    ensure(gst_element_sync_state_with_parent(&videoconvert) == TRUE);
+    ensure(gst_element_sync_state_with_parent(&waylandsink) == TRUE);
+    ensure(gst_element_sync_state_with_parent(&dec) == TRUE);
     PRINT("added h264 decoder");
 }
 
@@ -95,7 +95,7 @@ auto jitsibin_finished_handler(GstElement* const /*jitisbin*/, const gboolean su
     PRINT("finished success={}", success);
     const auto& self = *std::bit_cast<Context*>(data);
     const auto  bus  = AutoGstObject(gst_element_get_bus(self.pipeline));
-    ensure_v(gst_bus_post(bus.get(), gst_message_new_eos(NULL)) == TRUE);
+    ensure(gst_bus_post(bus.get(), gst_message_new_eos(NULL)) == TRUE);
 }
 } // namespace
 

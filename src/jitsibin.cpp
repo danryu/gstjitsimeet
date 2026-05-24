@@ -299,9 +299,9 @@ auto rtpbin_pad_added_handler(GstElement* const /*rtpbin*/, GstPad* const pad, g
 
     // get ssrc and pt from pad name
     const auto elms = split(name, "_");
-    ensure_v(elms.size() == 6, "malformed pad name");
-    unwrap_v(ssrc, from_chars<uint32_t>(elms[4]));
-    unwrap_v(pt, from_chars<uint8_t>(elms[5]));
+    ensure(elms.size() == 6, "malformed pad name");
+    unwrap(ssrc, from_chars<uint32_t>(elms[4]));
+    unwrap(pt, from_chars<uint8_t>(elms[5]));
 
     auto source = (const Source*)(nullptr);
     if(const auto i = jingle_session.ssrc_map.find(ssrc); i != jingle_session.ssrc_map.end()) {
@@ -323,41 +323,41 @@ auto rtpbin_pad_added_handler(GstElement* const /*rtpbin*/, GstPad* const pad, g
     if(use_fakesink) {
         // add fakesink to prevent broken pipeline
         const auto fakesink = AutoGstObject(gst_element_factory_make("fakesink", NULL));
-        ensure_v(call_vfunc(self, add_element, fakesink.get()) == TRUE);
+        ensure(call_vfunc(self, add_element, fakesink.get()) == TRUE);
         const auto fakesink_sink_pad = AutoGstObject(gst_element_get_static_pad(fakesink.get(), "sink"));
-        ensure_v(fakesink_sink_pad.get() != NULL);
-        ensure_v(gst_pad_link(pad, GST_PAD(fakesink_sink_pad.get())) == GST_PAD_LINK_OK);
-        ensure_v(gst_element_sync_state_with_parent(fakesink.get()));
+        ensure(fakesink_sink_pad.get() != NULL);
+        ensure(gst_pad_link(pad, GST_PAD(fakesink_sink_pad.get())) == GST_PAD_LINK_OK);
+        ensure(gst_element_sync_state_with_parent(fakesink.get()));
         return;
     }
 
     LOG_DEBUG(logger, "pad added for remote source {}", source->participant_id);
 
     // add depayloader
-    unwrap_v(codec, jingle_session.find_codec_by_tx_pt(pt), "cannot find depayloader for such payload type");
-    unwrap_v(depayloader_name, codec_type_to_depayloader_name.find(codec.type));
+    unwrap(codec, jingle_session.find_codec_by_tx_pt(pt), "cannot find depayloader for such payload type");
+    unwrap(depayloader_name, codec_type_to_depayloader_name.find(codec.type));
     const auto depay = AutoGstObject(gst_element_factory_make(depayloader_name.data(), NULL));
     g_object_set(depay.get(),
                  "auto-header-extension", FALSE,
                  NULL);
     g_signal_connect(depay.get(), "request-extension", G_CALLBACK(pay_depay_request_extension_handler), &self);
-    ensure_v(call_vfunc(self, add_element, depay.get()) == TRUE);
-    ensure_v(gst_element_sync_state_with_parent(depay.get()));
+    ensure(call_vfunc(self, add_element, depay.get()) == TRUE);
+    ensure(gst_element_sync_state_with_parent(depay.get()));
     const auto depay_sink_pad = AutoGstObject(gst_element_get_static_pad(depay.get(), "sink"));
-    ensure_v(depay_sink_pad.get() != NULL);
-    ensure_v(gst_pad_link(pad, GST_PAD(depay_sink_pad.get())) == GST_PAD_LINK_OK);
+    ensure(depay_sink_pad.get() != NULL);
+    ensure(gst_pad_link(pad, GST_PAD(depay_sink_pad.get())) == GST_PAD_LINK_OK);
 
     // expose src pad
-    unwrap_v(encoding_name, codec_type_to_rtp_encoding_name.find(codec.type));
+    unwrap(encoding_name, codec_type_to_rtp_encoding_name.find(codec.type));
     const auto ghost_pad_name = std::format("{}_{}_{}", source->participant_id, encoding_name.data(), ssrc);
 
     const auto depay_src_pad = AutoGstObject(gst_element_get_static_pad(depay.get(), "src"));
-    ensure_v(depay_src_pad.get() != NULL);
+    ensure(depay_src_pad.get() != NULL);
 
     const auto ghost_pad = AutoGstObject(gst_ghost_pad_new(ghost_pad_name.data(), depay_src_pad.get()));
-    ensure_v(ghost_pad.get() != NULL);
+    ensure(ghost_pad.get() != NULL);
 
-    ensure_v(gst_element_add_pad(GST_ELEMENT(self.bin), ghost_pad.get()) == TRUE);
+    ensure(gst_element_add_pad(GST_ELEMENT(self.bin), ghost_pad.get()) == TRUE);
 
     return;
 }
@@ -568,7 +568,7 @@ struct XMPPNegotiatorCallbacks : public xmpp::NegotiatorCallbacks {
     ws::client::AsyncContext* ws_context;
 
     auto send_payload(std::string_view payload) -> void override {
-        ensure_v(ws_context->send(payload));
+        ensure(ws_context->send(payload));
     }
 };
 
@@ -583,7 +583,7 @@ struct ConferenceCallbacks : public conference::ConferenceCallbacks {
     }
 
     auto send_payload(std::string_view payload) -> void override {
-        ensure_v(ws_context->send(payload));
+        ensure(ws_context->send(payload));
     }
 
     auto on_jingle(jingle::Jingle jingle) -> bool override {
@@ -834,12 +834,12 @@ auto gst_jitsibin_init(GstJitsiBin* jitsibin) -> void {
     auto& self = *jitsibin->real_self;
 
     // audio sink
-    unwrap_v_mut(jitsibin_audio_sink, gst_ghost_pad_new_no_target("audio_sink", GST_PAD_SINK));
-    ensure_v(gst_element_add_pad(GST_ELEMENT(self.bin), &jitsibin_audio_sink) == TRUE);
+    unwrap_mut(jitsibin_audio_sink, gst_ghost_pad_new_no_target("audio_sink", GST_PAD_SINK));
+    ensure(gst_element_add_pad(GST_ELEMENT(self.bin), &jitsibin_audio_sink) == TRUE);
     self.audio_sink_elements.sink_pad = &jitsibin_audio_sink;
     // video sink
-    unwrap_v_mut(jitsibin_video_sink, gst_ghost_pad_new_no_target("video_sink", GST_PAD_SINK));
-    ensure_v(gst_element_add_pad(GST_ELEMENT(self.bin), &jitsibin_video_sink) == TRUE);
+    unwrap_mut(jitsibin_video_sink, gst_ghost_pad_new_no_target("video_sink", GST_PAD_SINK));
+    ensure(gst_element_add_pad(GST_ELEMENT(self.bin), &jitsibin_video_sink) == TRUE);
     self.video_sink_elements.sink_pad = &jitsibin_video_sink;
 
     return;
