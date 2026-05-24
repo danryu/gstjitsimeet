@@ -1,28 +1,24 @@
 #include "jitsibin.hpp"
+#include <gst/gst.h>
+
+#ifndef PACKAGE
+#define PACKAGE "gstjitsimeet"
+#endif
 
 namespace {
 auto register_callback(GstPlugin* const plugin) -> gboolean {
     return gst_element_register(plugin, "jitsibin", GST_RANK_NONE, gst_jitsibin_get_type());
 }
-
-const auto plugin_desc = GstPluginDesc{
-    GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    "gstjitsimeet",           // plugin name
-    "Jitsi Meet gst binding", // description
-    register_callback,        // plugin init
-    "1.0",                    // version
-    "LGPL",                   // licence
-    "unknown",                // source
-    "unknown",                // package
-    "@mojyack",               // origin
-    NULL,                     // release datetime
-    {NULL},
-};
 } // namespace
 
-extern "C" {
-GST_PLUGIN_EXPORT auto gst_plugin_jitsimeet_get_desc() -> const GstPluginDesc* {
-    return &plugin_desc;
-}
-}
+GST_PLUGIN_DEFINE(
+    GST_VERSION_MAJOR,
+    GST_VERSION_MINOR,
+    jitsimeet,
+    "Jitsi Meet gst binding",
+    register_callback,
+    "1.0",
+    "LGPL",
+    "unknown",
+    "unknown"
+)

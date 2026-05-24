@@ -7,6 +7,7 @@ add_project_arguments('-std=c++23', language : 'cpp')
 
 gstreamer_dep = dependency('gstreamer-1.0', version : ['>=1.20'])
 
+
 deps = [
   gstreamer_dep,
   dependency('gstreamer-rtp-1.0'),
@@ -14,9 +15,10 @@ deps = [
   dependency('openssl'),
 ]
 
+
 subdir('src/jitsi')
 
-library('gstjitsimeet', files(
+gstjitsimeet_plugin = library('gstjitsimeet', files(
     'src/lib.cpp',
     'src/jitsibin.cpp',
     'src/props.cpp',
@@ -26,17 +28,25 @@ library('gstjitsimeet', files(
   install_dir : get_option('libdir') / 'gstreamer-1.0',
 )
 
-# examples
-executable('receiver-example', files(
-    'src/gstutil/pipeline-helper.cpp',
-    'src/examples/receiver.cpp',
-  ),
-  dependencies : [gstreamer_dep],
-) 
+gst_plugins = [
+  declare_dependency(
+    link_with: gstjitsimeet_plugin,
+    variables: {'full_path': gstjitsimeet_plugin.full_path()}
+  )
+]
 
-executable('room-to-room-example', files(
-    'src/gstutil/pipeline-helper.cpp',
-    'src/examples/room-to-room.cpp',
-  ),
-  dependencies : [gstreamer_dep],
-) 
+# examples - disabled for static builds due to qml6 plugin Qt dependencies
+# The main libgstjitsimeet.a library builds fine
+# executable('receiver-example', files(
+#     'src/gstutil/pipeline-helper.cpp',
+#     'src/examples/receiver.cpp',
+#   ),
+#   dependencies : [gstreamer_dep],
+# )
+#
+# executable('room-to-room-example', files(
+#     'src/gstutil/pipeline-helper.cpp',
+#     'src/examples/room-to-room.cpp',
+#   ),
+#   dependencies : [gstreamer_dep],
+# )
