@@ -30,7 +30,7 @@ auto jitsibin_pad_added_handler(GstElement* const /*jitsibin*/, GstPad* const pa
     const auto name   = std::string_view(name_g.get());
     PRINT("pad added name={}", name);
 
-    unwrap(pad_name, parse_jitsibin_pad_name(name));
+    unwrap_v(pad_name, parse_jitsibin_pad_name(name));
 
     auto audio_decoder_name = (const char*)(nullptr);
     auto video_decoder_name = (const char*)(nullptr);
@@ -69,42 +69,42 @@ auto jitsibin_pad_added_handler(GstElement* const /*jitsibin*/, GstPad* const pa
         //                                                              -> videoconvert -> x264enc -> jitsibin
         //
 
-        unwrap_mut(dec, add_new_element_to_pipeine(self.pipeline, video_decoder_name));
-        unwrap_mut(videoscale, add_new_element_to_pipeine(self.pipeline, "videoscale"));
-        unwrap_mut(capsfilter, add_new_element_to_pipeine(self.pipeline, "capsfilter"));
+        unwrap_v_mut(dec, add_new_element_to_pipeine(self.pipeline, video_decoder_name));
+        unwrap_v_mut(videoscale, add_new_element_to_pipeine(self.pipeline, "videoscale"));
+        unwrap_v_mut(capsfilter, add_new_element_to_pipeine(self.pipeline, "capsfilter"));
         g_object_set(&capsfilter, "caps", caps.get(), NULL);
-        unwrap_mut(tee, add_new_element_to_pipeine(self.pipeline, "tee"));
-        unwrap_mut(videoconvert_wl, add_new_element_to_pipeine(self.pipeline, "videoconvert"));
-        unwrap_mut(waylandsink, add_new_element_to_pipeine(self.pipeline, "waylandsink"));
-        unwrap_mut(videoconvert_enc, add_new_element_to_pipeine(self.pipeline, "videoconvert"));
-        unwrap_mut(enc, add_new_element_to_pipeine(self.pipeline, "x264enc"));
+        unwrap_v_mut(tee, add_new_element_to_pipeine(self.pipeline, "tee"));
+        unwrap_v_mut(videoconvert_wl, add_new_element_to_pipeine(self.pipeline, "videoconvert"));
+        unwrap_v_mut(waylandsink, add_new_element_to_pipeine(self.pipeline, "waylandsink"));
+        unwrap_v_mut(videoconvert_enc, add_new_element_to_pipeine(self.pipeline, "videoconvert"));
+        unwrap_v_mut(enc, add_new_element_to_pipeine(self.pipeline, "x264enc"));
         const auto dec_sink_pad = AutoGstObject(gst_element_get_static_pad(&dec, "sink"));
-        ensure(gst_pad_link(pad, dec_sink_pad.get()) == GST_PAD_LINK_OK);
-        ensure(gst_element_link_pads(&dec, NULL, &videoscale, NULL) == TRUE);
-        ensure(gst_element_link_pads(&videoscale, NULL, &capsfilter, NULL) == TRUE);
-        ensure(gst_element_link_pads(&capsfilter, NULL, &tee, NULL) == TRUE);
-        ensure(gst_element_link_pads(&tee, NULL, &videoconvert_wl, NULL) == TRUE);
-        ensure(gst_element_link_pads(&videoconvert_wl, NULL, &waylandsink, NULL) == TRUE);
-        ensure(gst_element_link_pads(&tee, NULL, &videoconvert_enc, NULL) == TRUE);
-        ensure(gst_element_link_pads(&videoconvert_enc, NULL, &enc, NULL) == TRUE);
-        ensure(gst_element_link_pads(&enc, NULL, self.jitsibin_sink, "video_sink") == TRUE);
+        ensure_v(gst_pad_link(pad, dec_sink_pad.get()) == GST_PAD_LINK_OK);
+        ensure_v(gst_element_link_pads(&dec, NULL, &videoscale, NULL) == TRUE);
+        ensure_v(gst_element_link_pads(&videoscale, NULL, &capsfilter, NULL) == TRUE);
+        ensure_v(gst_element_link_pads(&capsfilter, NULL, &tee, NULL) == TRUE);
+        ensure_v(gst_element_link_pads(&tee, NULL, &videoconvert_wl, NULL) == TRUE);
+        ensure_v(gst_element_link_pads(&videoconvert_wl, NULL, &waylandsink, NULL) == TRUE);
+        ensure_v(gst_element_link_pads(&tee, NULL, &videoconvert_enc, NULL) == TRUE);
+        ensure_v(gst_element_link_pads(&videoconvert_enc, NULL, &enc, NULL) == TRUE);
+        ensure_v(gst_element_link_pads(&enc, NULL, self.jitsibin_sink, "video_sink") == TRUE);
 
-        ensure(gst_element_sync_state_with_parent(&enc) == TRUE);
-        ensure(gst_element_sync_state_with_parent(&videoconvert_enc) == TRUE);
-        ensure(gst_element_sync_state_with_parent(&waylandsink) == TRUE);
-        ensure(gst_element_sync_state_with_parent(&videoconvert_wl) == TRUE);
-        ensure(gst_element_sync_state_with_parent(&tee) == TRUE);
-        ensure(gst_element_sync_state_with_parent(&capsfilter) == TRUE);
-        ensure(gst_element_sync_state_with_parent(&videoscale) == TRUE);
-        ensure(gst_element_sync_state_with_parent(&dec) == TRUE);
+        ensure_v(gst_element_sync_state_with_parent(&enc) == TRUE);
+        ensure_v(gst_element_sync_state_with_parent(&videoconvert_enc) == TRUE);
+        ensure_v(gst_element_sync_state_with_parent(&waylandsink) == TRUE);
+        ensure_v(gst_element_sync_state_with_parent(&videoconvert_wl) == TRUE);
+        ensure_v(gst_element_sync_state_with_parent(&tee) == TRUE);
+        ensure_v(gst_element_sync_state_with_parent(&capsfilter) == TRUE);
+        ensure_v(gst_element_sync_state_with_parent(&videoscale) == TRUE);
+        ensure_v(gst_element_sync_state_with_parent(&dec) == TRUE);
 
         connected = true;
         PRINT("video connected");
         return;
     } else {
         const auto sink_pad = AutoGstObject(gst_element_get_static_pad(self.jitsibin_sink, "audio_sink"));
-        ensure(sink_pad.get() != NULL);
-        ensure(gst_pad_link(pad, sink_pad.get()) == GST_PAD_LINK_OK);
+        ensure_v(sink_pad.get() != NULL);
+        ensure_v(gst_pad_link(pad, sink_pad.get()) == GST_PAD_LINK_OK);
         connected = true;
         PRINT("audio connected");
         return;

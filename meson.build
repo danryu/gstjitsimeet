@@ -1,9 +1,13 @@
 project('gstjitsimeet', 'cpp', version : '0.0', default_options : ['warning_level=3', 'cpp_std=c++23'])
-add_project_arguments('-Wfatal-errors', language : 'cpp')
-add_project_arguments('-fpermissive', language : 'cpp')
-add_project_arguments('-Wno-narrowing', language : 'cpp')
-add_project_arguments('-Wno-missing-field-initializers', language : 'cpp')
-add_project_arguments('-std=c++23', language : 'cpp')
+cpp_compiler = meson.get_compiler('cpp')
+if cpp_compiler.get_id() == 'msvc'
+  add_project_arguments(['/std:c++latest', '/permissive-', '/Zc:preprocessor', '/EHsc', '/bigobj', '/DNOMINMAX', '/D_ITERATOR_DEBUG_LEVEL=0', '/MD'], language : 'cpp')
+  add_project_link_arguments('/NODEFAULTLIB:LIBCMTD', language: 'cpp')
+  add_project_link_arguments('/NODEFAULTLIB:MSVCRTD', language: 'cpp')
+  add_project_link_arguments('/OPT:NOREF', language: 'cpp')
+else
+  add_project_arguments(['-Wfatal-errors', '-fpermissive', '-Wno-narrowing', '-Wno-missing-field-initializers', '-std=c++23'], language : 'cpp')
+endif
 
 gstreamer_dep = dependency('gstreamer-1.0', version : ['>=1.20'])
 
@@ -21,22 +25,9 @@ library('gstjitsimeet', files(
     'src/jitsibin.cpp',
     'src/props.cpp',
   ) + libjitsimeet_src,
+  include_directories : include_directories('src/jitsi'),
   dependencies : deps + libjitsimeet_deps,
   install : true,
   install_dir : get_option('libdir') / 'gstreamer-1.0',
 )
 
-# examples
-executable('receiver-example', files(
-    'src/gstutil/pipeline-helper.cpp',
-    'src/examples/receiver.cpp',
-  ),
-  dependencies : [gstreamer_dep],
-) 
-
-executable('room-to-room-example', files(
-    'src/gstutil/pipeline-helper.cpp',
-    'src/examples/room-to-room.cpp',
-  ),
-  dependencies : [gstreamer_dep],
-) 
