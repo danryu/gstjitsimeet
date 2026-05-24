@@ -1,4 +1,4 @@
-libjitsimeet https://github.com/danryu/libjitsimeet.git msvc
-cutil https://github.com/danryu/cutil.git msvc
-cutil-macros https://github.com/danryu/cutil-macros.git msvc
-gstreamer-utils https://github.com/danryu/gstreamer-utils.git msvc
+libjitsimeet https://github.com/danryu/libjitsimeet.git b38c89560998f5eb1af2d67ed8071cafb0c25a6a
+cutil https://github.com/danryu/cutil.git acf93ad5575ff11f134d1c258a3644b8b3d678d8
+cutil-macros https://github.com/danryu/cutil-macros.git 7f8dada54eab42d6c8c83dde69bc5d318bd18571
+gstreamer-utils https://github.com/danryu/gstreamer-utils.git fd7ecf85a4031a74f5cda92bce6feac809116a45
