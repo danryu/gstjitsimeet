@@ -44,18 +44,17 @@ net-libs/libwebsockets
 
 # Checkout dependencies
 
-This branch uses standard git submodules instead of the upstream `submod` utility.
+This branch replaces the upstream `submod` utility with:
+
+1. **Standard git submodules** for the four direct dependencies (see `.gitmodules`)
+2. **`scripts/init-submodules.sh`** to clone nested dependencies listed in each repo's `submodules.txt`
+
+Nested repos still ship upstream `submodules.txt` files (used as the pin manifest). The init script reads those and runs plain `git clone` + `git checkout` — no `submod` binary required.
 
 ```
 git clone -b monorepo2 <this-repo-url>
 cd gstjitsimeet-monorepo
 ./scripts/init-submodules.sh
-```
-
-Or in one step:
-
-```
-git clone -b monorepo2 --recursive <this-repo-url>
 ```
 
 # Build
