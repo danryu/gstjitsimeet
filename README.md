@@ -42,6 +42,22 @@ media-plugins/gst-plugins-x264 \
 net-libs/libwebsockets
 ```
 
+# Checkout dependencies
+
+This branch uses standard git submodules instead of the upstream `submod` utility.
+
+```
+git clone -b monorepo2 <this-repo-url>
+cd gstjitsimeet-monorepo
+./scripts/init-submodules.sh
+```
+
+Or in one step:
+
+```
+git clone -b monorepo2 --recursive <this-repo-url>
+```
+
 # Build
 ```
 # install dependent library
@@ -52,8 +68,7 @@ ninja -C build install
 export PKG_CONFIG_PATH=/tmp/rootfs/lib/pkgconfig
 popd
 # build gstjitsimeet
-git clone --recursive https://github.com/mojyack/gstjitsimeet.git
-pushd gstjitsimeet
+pushd gstjitsimeet-monorepo
 meson setup build --buildtype=release
 ninja -C build
 ```
