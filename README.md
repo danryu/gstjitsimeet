@@ -47,13 +47,12 @@ net-libs/libwebsockets
 This branch replaces the upstream `submod` utility with:
 
 1. **Standard git submodules** for the four direct dependencies (see `.gitmodules`)
-2. **`scripts/init-submodules.sh`** to clone nested dependencies listed in each repo's `submodules.txt`
-
-Nested repos still ship upstream `submodules.txt` files (used as the pin manifest). The init script reads those and runs plain `git clone` + `git checkout` — no `submod` binary required.
+2. **`scripts/nested-deps.txt`** — pin manifest for nested dependencies
+3. **`scripts/init-submodules.sh`** — initializes submodules and clones nested deps
 
 ```
-git clone -b monorepo2 <this-repo-url>
-cd gstjitsimeet-monorepo
+git clone -b monorepo2 https://github.com/danryu/gstjitsimeet.git
+cd gstjitsimeet
 ./scripts/init-submodules.sh
 ```
 
@@ -67,7 +66,7 @@ ninja -C build install
 export PKG_CONFIG_PATH=/tmp/rootfs/lib/pkgconfig
 popd
 # build gstjitsimeet
-pushd gstjitsimeet-monorepo
+pushd gstjitsimeet
 meson setup build --buildtype=release
 ninja -C build
 ```
